@@ -3,15 +3,15 @@
 
 void SLMOD::compress_img_callback(const sensor_msgs::CompressedImageConstPtr &msg){
 
-    compress_img_buffer_mutex.lock();
+    buffer_mutex.lock();
     compress_img_buffer.push_back(msg);
-    compress_img_buffer_mutex.unlock();
+    buffer_mutex.unlock();
 
     // 显示图像
-    // cv_bridge::CvImagePtr cv_ptr_compressed = cv_bridge::toCvCopy( msg, sensor_msgs::image_encodings::BGR8 );
-    // cv::Mat img_temp = cv_ptr_compressed->image;
-    // cv::imshow("feature point image", img_temp);
-    // cv::waitKey(1);
+    cv_bridge::CvImagePtr cv_ptr_compressed = cv_bridge::toCvCopy( msg, sensor_msgs::image_encodings::BGR8 );
+    cv::Mat img_temp = cv_ptr_compressed->image;
+    cv::imshow("feature point image", img_temp);
+    cv::waitKey(1);
 }
 
 void SLMOD::object_callback(const yolov5_ros::Detection2DArrayConstPtr &msg){
@@ -22,7 +22,9 @@ void SLMOD::object_callback(const yolov5_ros::Detection2DArrayConstPtr &msg){
 
         detected_object.push_back(bbox_transfom(det));
     }
+    buffer_mutex.lock();
     detected_object_buffer.push_back(detected_object);
+    buffer_mutex.unlock();
 }
 
 Object SLMOD::bbox_transfom(yolov5_ros::Detection2D det){

@@ -1,5 +1,6 @@
 imu:
   topic: "/livox/imu"
+  hz: 200
 
 lidar:
   topic: "/livox/lidar"

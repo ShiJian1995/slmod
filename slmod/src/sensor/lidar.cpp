@@ -10,9 +10,9 @@ void SLMOD::lidar_callback(const livox_ros_driver::CustomMsg::ConstPtr &msg_raw)
     // 显示点云数据
     // publish_cloud(pub_raw_lidar);
 
-    lidar_buffer_mutex.lock();
+    buffer_mutex.lock();
     lidar_buffer.push_back(msg);
-    lidar_buffer_mutex.unlock();
+    buffer_mutex.unlock();
 }
 
 void SLMOD::avia_handler(const livox_ros_driver::CustomMsg::ConstPtr &msg)

@@ -8,7 +8,7 @@ int main(int argc, char** argv){
     ros::init(argc, argv, "slmod");
     SLMOD slmod;  // livo
 
-    ros::Rate rate(5000);
+    ros::Rate rate(2000);
     while (ros::ok())
     {
         ros::spinOnce();

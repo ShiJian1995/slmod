@@ -24,6 +24,23 @@
 
 typedef pcl::PointXYZINormal PointType;
 
+struct SensorData{
+
+    pcl::PointCloud<PointType>::Ptr lidar;
+    std::vector<sensor_msgs::CompressedImageConstPtr> compress_img_vec;
+    std::vector<sensor_msgs::Imu::ConstPtr> imu_vec;
+    std::vector<std::vector<Object>> detected_object_vec;
+
+    double lidar_begin_time, lidar_end_time;
+
+    void clear_all(){
+
+        compress_img_vec.clear();
+        imu_vec.clear();
+        detected_object_vec.clear();
+    }
+};
+
 
 // lidar-visual-imu odometry
 class SLMOD{
@@ -36,6 +53,8 @@ class SLMOD{
                                    {"motorcycle", 3}, {"bus", 5}, {"truck", 7}};
 
     std::shared_ptr<Common_tools::ThreadPool> thread_pool_ptr;
+    std::mutex buffer_mutex;
+    SensorData sensor_data; // 一次数据的结构体
     
 
     // lidar
@@ -43,7 +62,6 @@ class SLMOD{
     std::string lidar_topic;
     void lidar_callback(const livox_ros_driver::CustomMsg::ConstPtr &msg); // 回调函数声明
     std::deque<pcl::PointCloud<PointType>::Ptr> lidar_buffer;
-    std::mutex lidar_buffer_mutex;
     pcl::PointCloud<PointType> pl_full; // 平面点云
     int N_SCANS;
     void avia_handler(const livox_ros_driver::CustomMsg::ConstPtr &msg);
@@ -55,7 +73,6 @@ class SLMOD{
     std::string compress_img_topic;
     void compress_img_callback(const sensor_msgs::CompressedImageConstPtr &msg);
     std::deque<sensor_msgs::CompressedImageConstPtr> compress_img_buffer;
-    std::mutex compress_img_buffer_mutex;
     int img_width, img_height;
 
 
@@ -64,7 +81,7 @@ class SLMOD{
     std::string imu_topic;
     void imu_callback(const sensor_msgs::Imu::ConstPtr &msg); // 回调函数声明
     std::deque<sensor_msgs::Imu::ConstPtr> imu_buffer;
-    std::mutex imu_buffer_mutex;
+    int imu_hz;
 
     // object
     ros::Subscriber sub_object;
@@ -73,6 +90,7 @@ class SLMOD{
     std::vector<Object> detected_object;
     std::deque<std::vector<Object>> detected_object_buffer;
     Object bbox_transfom(yolov5_ros::Detection2D det);
+    
     
     // slmod
     SLMOD();
