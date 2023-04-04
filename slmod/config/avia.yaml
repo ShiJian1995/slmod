@@ -10,6 +10,7 @@ camera:
   topic: "/camera/image_color/compressed"
   img_width: 1280
   img_height: 1024
+  hz: 30
 
 object:
   topic: "/yolov5_ros/objects"

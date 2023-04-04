@@ -12,6 +12,7 @@ SLMOD::SLMOD(){
     nh.param<int>("/camera/img_width", img_width, 1280);
     nh.param<int>("/camera/img_height", img_height, 1024);
     nh.param<int>("/imu/hz", imu_hz, 200);
+    nh.param<int>("/camera/hz", compress_img_hz, 30);
 
     // 回调函数
     sub_imu = nh.subscribe(imu_topic, 2000, &SLMOD::imu_callback, this, ros::TransportHints().tcpNoDelay());
@@ -34,75 +35,75 @@ void SLMOD::sync_multi_sensor(){
     
     // 数据头对齐
     ros::Rate rate(2000);
+    bool is_aligned = false; // 传感器起始数据是否对齐
     while (ros::ok())
     {
         
-        if(!lidar_buffer.empty() && !imu_buffer.empty() &&
-            !compress_img_buffer.empty() && !detected_object_buffer.empty()){ // 所有消息队列均不为空
+        if(!lidar_buffer.empty() && !is_aligned){ // 激光雷达队列不为空
 
             buffer_mutex.lock();
             // 激光雷达起始时间
             double lidar_begin_time = lidar_buffer.front()->points.front().curvature / double (1000);
             double lidar_end_time = lidar_buffer.front()->points.back().curvature / double (1000);
 
+            
             // 查询camera和IMU
-            while(!imu_buffer.empty()){
+            while(!imu_buffer.empty() && !compress_img_buffer.empty()){ // 将IMU中早于激光雷达的数据全部清除
 
-                if(imu_buffer.front()->header.stamp.toSec() > lidar_end_time){
+                double imu_front_time = imu_buffer.front()->header.stamp.toSec();
+                double imu_back_time = imu_buffer.back()->header.stamp.toSec();
+
+                if(imu_front_time > lidar_end_time){ // IMU起始时间大于激光雷达点云最后时刻
 
                     lidar_buffer.pop_front();
                     break;
                 }
-                if(imu_buffer.back()->header.stamp.toSec() < lidar_begin_time - (1.0 / imu_hz)){
+
+                if(imu_back_time < lidar_begin_time){ // IMU 全部在激光雷达之前，全部丢弃
 
                     imu_buffer.clear();
                     break;
                 }
 
-                if(imu_buffer.front()->header.stamp.toSec() < lidar_begin_time - (1.0 / imu_hz)){
+                if(imu_front_time < lidar_begin_time){ // 第一个数据在激光雷达之前，丢弃该数据
 
                     imu_buffer.pop_front();
                     continue;
                 }
-                else{
-                    sensor_data.imu_vec.push_back(imu_buffer.front());
-                    imu_buffer.pop_back();
-                }
-            }
 
-            while(!compress_img_buffer.empty()){
+                double compress_img_front_time = compress_img_buffer.front()->header.stamp.toSec();
+                double compress_img_back_time = compress_img_buffer.back()->header.stamp.toSec();
 
-                if(compress_img_buffer.front()->header.stamp.toSec() > lidar_end_time){
+                if(compress_img_front_time > lidar_end_time){
 
                     lidar_buffer.pop_front();
                     break; 
                 }
 
-                if(compress_img_buffer.back()->header.stamp.toSec() < lidar_begin_time){
+                if(compress_img_back_time < lidar_begin_time){
 
                     compress_img_buffer.clear();
                     break;
                 }
-                if(compress_img_buffer.front()->header.stamp.toSec() < lidar_begin_time){
+                if(compress_img_front_time < lidar_begin_time){
 
                     compress_img_buffer.pop_front();
                     continue;
                 }
-                else{
-                    sensor_data.compress_img_vec.push_back(compress_img_buffer.front());
-                    compress_img_buffer.pop_front();
-                }
-            }
 
-            // jixu
+                is_aligned = true; // 数据对齐
+            }
+            //  
 
             buffer_mutex.unlock();
         }
-        
-        std::cout << "sensor data size " << std::endl;
-        std::cout << sensor_data.compress_img_vec.size() << std::endl;
-        rate.sleep();
 
+        if(is_aligned){
+            
+        }
+
+
+        rate.sleep();
     }
     
 

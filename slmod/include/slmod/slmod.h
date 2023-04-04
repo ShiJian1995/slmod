@@ -74,6 +74,7 @@ class SLMOD{
     void compress_img_callback(const sensor_msgs::CompressedImageConstPtr &msg);
     std::deque<sensor_msgs::CompressedImageConstPtr> compress_img_buffer;
     int img_width, img_height;
+    int compress_img_hz;
 
 
     // inertial
