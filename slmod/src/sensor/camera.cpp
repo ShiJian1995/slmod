@@ -16,14 +16,16 @@ void SLMOD::compress_img_callback(const sensor_msgs::CompressedImageConstPtr &ms
 
 void SLMOD::object_callback(const yolov5_ros::Detection2DArrayConstPtr &msg){
 
-    detected_object.clear();
+    detected_objects.objects.clear(); // 清空目标检测结果
 
     for(auto det : msg->detections){
 
-        detected_object.push_back(bbox_transfom(det));
+        detected_objects.objects.push_back(bbox_transfom(det));
     }
+
+    detected_objects.stamp = msg->header.stamp.toSec();
     buffer_mutex.lock();
-    detected_object_buffer.push_back(detected_object);
+    detected_object_buffer.push_back(detected_objects);
     buffer_mutex.unlock();
 }
 

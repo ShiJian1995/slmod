@@ -21,17 +21,33 @@
 #include <map>
 #include <vector>
 #include "tools_thread_pool.hpp"
+#include <cv_bridge/cv_bridge.h>
+#include "feature_tracker.h"
 
 typedef pcl::PointXYZINormal PointType;
+
+struct DetectedObjects{
+
+    std::vector<Object> objects;
+    double stamp; // sec
+};
 
 struct SensorData{
 
     pcl::PointCloud<PointType>::Ptr lidar;
     std::vector<sensor_msgs::CompressedImageConstPtr> compress_img_vec;
     std::vector<sensor_msgs::Imu::ConstPtr> imu_vec;
-    std::vector<std::vector<Object>> detected_object_vec;
+    std::vector<DetectedObjects> detected_object_vec;
 
     double lidar_begin_time, lidar_end_time;
+    double imu_begin_time, imu_end_time;
+    double compress_img_beign_time, compress_img_end_time;
+    double detected_object_begin_time, detected_object_end_time;
+
+    bool imu_ready = false;
+    bool lidar_ready = false;
+    bool compress_img_ready = false;
+    bool detected_object_ready = false;
 
     void clear_all(){
 
@@ -55,7 +71,6 @@ class SLMOD{
     std::shared_ptr<Common_tools::ThreadPool> thread_pool_ptr;
     std::mutex buffer_mutex;
     SensorData sensor_data; // 一次数据的结构体
-    
 
     // lidar
     ros::Subscriber sub_lidar;
@@ -67,6 +82,7 @@ class SLMOD{
     void avia_handler(const livox_ros_driver::CustomMsg::ConstPtr &msg);
     void publish_cloud(const ros::Publisher &pub_cloud);
     ros::Publisher pub_raw_lidar;
+    int lidar_hz;
 
     // visual
     ros::Subscriber sub_compress_img;
@@ -75,6 +91,12 @@ class SLMOD{
     std::deque<sensor_msgs::CompressedImageConstPtr> compress_img_buffer;
     int img_width, img_height;
     int compress_img_hz;
+    double compress_img_buffer_front_stamp;
+    // Eigen::Matrix<double, 3, 3, Eigen::RowMajor> camera_intrinsic;
+    // Eigen::Matrix<double, 5, 1> camera_dist_coffes;
+    bool equalize;
+    int img_solved_num = 0;
+    CameraModel g_cam_mod;
 
 
     // inertial
@@ -83,20 +105,26 @@ class SLMOD{
     void imu_callback(const sensor_msgs::Imu::ConstPtr &msg); // 回调函数声明
     std::deque<sensor_msgs::Imu::ConstPtr> imu_buffer;
     int imu_hz;
+    double imu_buffer_front_stamp;
+    int imu_solved_num = 0;
 
     // object
     ros::Subscriber sub_object;
     std::string object_topic;
     void object_callback(const yolov5_ros::Detection2DArrayConstPtr &msg);
-    std::vector<Object> detected_object;
-    std::deque<std::vector<Object>> detected_object_buffer;
+    DetectedObjects detected_objects;
+    std::deque<DetectedObjects> detected_object_buffer;
     Object bbox_transfom(yolov5_ros::Detection2D det);
+    double detected_object_buffer_front_stamp;
     
     
     // slmod
     SLMOD();
     ~SLMOD(){};
     void sync_multi_sensor();
+    void vio_odom();
+    void lio_odom();
+    void img_feature_track();
 
 };
 

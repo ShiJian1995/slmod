@@ -20,6 +20,7 @@ void SLMOD::avia_handler(const livox_ros_driver::CustomMsg::ConstPtr &msg)
     pl_full.clear();
     int plsize = msg->point_num;
     pl_full.resize(plsize);
+    pl_full.header.stamp = msg->header.stamp.toNSec();
     uint valid_num = 0;
     for(uint i=1; i<plsize; i++)
     {
