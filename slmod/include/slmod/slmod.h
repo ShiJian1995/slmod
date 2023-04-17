@@ -5,6 +5,8 @@
 #include <string>
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/PointCloud.h>
+#include <sensor_msgs/Image.h>
 #include <deque>
 #include <mutex>
 #include <condition_variable>
@@ -23,6 +25,7 @@
 #include "tools_thread_pool.hpp"
 #include <cv_bridge/cv_bridge.h>
 #include "feature_tracker.h"
+#include "PinholeCamera.h"
 
 typedef pcl::PointXYZINormal PointType;
 
@@ -34,7 +37,7 @@ struct DetectedObjects{
 
 struct SensorData{
 
-    pcl::PointCloud<PointType>::Ptr lidar;
+    std::vector<pcl::PointCloud<PointType>::Ptr> lidar_vec;
     std::vector<sensor_msgs::CompressedImageConstPtr> compress_img_vec;
     std::vector<sensor_msgs::Imu::ConstPtr> imu_vec;
     std::vector<DetectedObjects> detected_object_vec;
@@ -54,6 +57,26 @@ struct SensorData{
         compress_img_vec.clear();
         imu_vec.clear();
         detected_object_vec.clear();
+        // 初始化激光雷达数据
+        lidar_vec.clear();
+
+        lidar_ready = false;
+        imu_ready = false;
+        compress_img_ready = false;
+        detected_object_ready = false;
+    }
+
+    // all ready
+    bool all_ready(){
+
+        if(lidar_ready && imu_ready && detected_object_ready && compress_img_ready){ // 所有数据就绪
+
+            return true;
+        }
+        else{
+
+            return false;
+        }
     }
 };
 
@@ -96,7 +119,10 @@ class SLMOD{
     // Eigen::Matrix<double, 5, 1> camera_dist_coffes;
     bool equalize;
     int img_solved_num = 0;
-    CameraModel g_cam_mod;
+    PinholeCameraPtr camera;
+    bool init_feature = false;
+    int WINDOW_SIZE = 20;
+    ros::Publisher pub_match;
 
 
     // inertial

@@ -3,22 +3,20 @@
 
 #include <opencv2/core/core.hpp>
 #include <string>
+#include <boost/shared_ptr.hpp>
+#include <Eigen/Core>
 
 #include "ceres/rotation.h"
-#include "Camera.h"
 
-namespace camodocal
-{
 
-class PinholeCamera: public Camera
+class PinholeCamera
 {
 public:
-    class Parameters: public Camera::Parameters
+    class Parameters
     {
     public:
         Parameters();
-        Parameters(const std::string& cameraName,
-                   int w, int h,
+        Parameters(int w, int h, int equalize,
                    double k1, double k2, double p1, double p2,
                    double fx, double fy, double cx, double cy);
 
@@ -31,7 +29,6 @@ public:
         double& cx(void);
         double& cy(void);
 
-        double xi(void) const;
         double k1(void) const;
         double k2(void) const;
         double p1(void) const;
@@ -41,11 +38,13 @@ public:
         double cx(void) const;
         double cy(void) const;
 
-        bool readFromYamlFile(const std::string& filename);
-        void writeToYamlFile(const std::string& filename) const;
-
-        Parameters& operator=(const Parameters& other);
-        friend std::ostream& operator<< (std::ostream& out, const Parameters& params);
+        int& imageWidth(void);
+        int& imageHeight(void);
+        int& equalize(void);
+        int imageWidth(void) const;
+        int imageHeight(void) const;
+        int equalize(void) const;
+        int nIntrinsics(void) const;
 
     private:
         double m_k1;
@@ -56,6 +55,11 @@ public:
         double m_fy;
         double m_cx;
         double m_cy;
+
+        int m_imageWidth;
+        int m_imageHeight;
+        int m_nIntrinsics;
+        int EQUALIZE;
     };
 
     PinholeCamera();
@@ -63,23 +67,10 @@ public:
     /**
     * \brief Constructor from the projection model parameters
     */
-    PinholeCamera(const std::string& cameraName,
-                  int imageWidth, int imageHeight,
-                  double k1, double k2, double p1, double p2,
-                  double fx, double fy, double cx, double cy);
-    /**
-    * \brief Constructor from the projection model parameters
-    */
     PinholeCamera(const Parameters& params);
 
-    Camera::ModelType modelType(void) const;
-    const std::string& cameraName(void) const;
     int imageWidth(void) const;
     int imageHeight(void) const;
-
-    void estimateIntrinsics(const cv::Size& boardSize,
-                            const std::vector< std::vector<cv::Point3f> >& objectPoints,
-                            const std::vector< std::vector<cv::Point2f> >& imagePoints);
 
     // Lift points from the image plane to the sphere
     virtual void liftSphere(const Eigen::Vector2d& p, Eigen::Vector3d& P) const;
@@ -127,10 +118,6 @@ public:
 
     void readParameters(const std::vector<double>& parameterVec);
     void writeParameters(std::vector<double>& parameterVec) const;
-
-    void writeParametersToYamlFile(const std::string& filename) const;
-
-    std::string parametersToString(void) const;
 
 private:
     Parameters mParameters;
@@ -191,6 +178,5 @@ PinholeCamera::spaceToPlane(const T* const params,
     p(1) = fy * v + cy;
 }
 
-}
 
 #endif

@@ -11,8 +11,7 @@ SLMOD::SLMOD(){
     nh.param<std::string>("/yolov5_ros/objects", object_topic, "/yolov5_ros/objects");
     nh.param<int>("/camera/img_width", img_width, 1280);
     nh.param<int>("/camera/img_height", img_height, 1024);
-    g_cam_mod.COL = img_width; 
-    g_cam_mod.ROW = img_height;
+
     nh.param<int>("/imu/hz", imu_hz, 200);
     nh.param<int>("/camera/hz", compress_img_hz, 30); // 相机频率尽量高
     nh.param<int>("/lidar/hz", lidar_hz, 10); // 激光雷达默认10hz
@@ -23,9 +22,14 @@ SLMOD::SLMOD(){
     nh.getParam("/camera/camera_dist_coeffs", camera_dist_coeffs_vec);
 
 
-    g_cam_mod.camera_intrinsic = Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>>(camera_intrinsic_vec.data());
-    g_cam_mod.camera_dist_coffes = Eigen::Map<Eigen::Matrix<double, 5, 1>>(camera_dist_coeffs_vec.data());
-    
+    Eigen::Matrix<double, 3, 3, Eigen::RowMajor> camera_intrinsic = Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>>(camera_intrinsic_vec.data());
+    Eigen::Matrix<double, 4, 1> camera_dist_coffes = Eigen::Map<Eigen::Matrix<double, 4, 1>>(camera_dist_coeffs_vec.data());
+
+    double k1, k2, p1, p2, fx, fy, cx, cy;
+    k1 = camera_dist_coffes(0); k2 = camera_dist_coffes(1); p1 = camera_dist_coffes(2); p2 = camera_dist_coffes(3); // 畸变
+    fx = camera_intrinsic(0, 0); fy = camera_intrinsic(1, 1); cx = camera_intrinsic(0, 2); cy = camera_intrinsic(1, 2); // 内参
+    PinholeCamera::Parameters params(img_width, img_height, equalize, k1, k2, p1, p2, fx, fy, cx, cy);
+    camera = boost::make_shared<PinholeCamera>(PinholeCamera(params)); // 针孔相机模型
 
     // 回调函数
     sub_imu = nh.subscribe(imu_topic, 2000, &SLMOD::imu_callback, this, ros::TransportHints().tcpNoDelay());
@@ -36,6 +40,8 @@ SLMOD::SLMOD(){
 
     // 发布器
     pub_raw_lidar = nh.advertise<sensor_msgs::PointCloud2>("/cloud_raw", 100);
+    //发布feature_img，实例ptr，跟踪的特征点图，给RVIZ用和调试用
+    pub_match = nh.advertise<sensor_msgs::Image>("feature_img",1000);
 
     // 线程池：数据对齐,数据预处理，LIO，VIO，pose graph
     thread_pool_ptr = std::make_shared<Common_tools::ThreadPool>(6, true, false); // 6 threads
@@ -122,11 +128,11 @@ void SLMOD::sync_multi_sensor(){
             // 提取激光雷达数据
             if(!lidar_buffer.empty()){
 
-                sensor_data.lidar = lidar_buffer.front();
+                sensor_data.lidar_vec.push_back(lidar_buffer.front());
                 sensor_data.lidar_ready = true;
-                sensor_data.lidar_begin_time = sensor_data.lidar->header.stamp / double (1e9);
+                sensor_data.lidar_begin_time = lidar_buffer.front()->header.stamp / double (1e9);
                 sensor_data.lidar_end_time = sensor_data.lidar_begin_time + 
-                                            sensor_data.lidar->points.end()->curvature / (1e3);
+                                            lidar_buffer.front()->points.end()->curvature / (1e3);
                 
             }
 
@@ -148,11 +154,12 @@ void SLMOD::sync_multi_sensor(){
                     // double imu_buffer_front_stamp = imu_buffer.front()->header.stamp.toSec();
                     // sensor_data.imu_end_time = sensor_data.imu_vec.back()->header.stamp.toSec();
                     // std::cout << "imu_buffer_front_stamp - sensor_imu_vec_back_stamp " << imu_buffer_front_stamp - sensor_data.imu_begin_time << std::endl;
-
+                    std::cout << std::setprecision(15) << "imu buffer time is " << imu_buffer_front_stamp << std::endl;
                     if((imu_buffer_front_stamp - sensor_data.imu_begin_time) < (1.0 / lidar_hz - (0.5 / imu_hz))){
 
                         if((imu_buffer_front_stamp - sensor_data.imu_end_time) < (0.8 / imu_hz) || 
                             (imu_buffer_front_stamp - sensor_data.imu_end_time) > (1.2 / imu_hz)){
+
                         
                             ROS_ERROR_STREAM("imu data rate wrong !!");
                             // imu_buffer.pop_front();

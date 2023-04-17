@@ -9,8 +9,6 @@
 #include <opencv2/opencv.hpp>
 #include <eigen3/Eigen/Dense>
 
-#include "CameraFactory.h"
-#include "CataCamera.h"
 #include "PinholeCamera.h"
 
 // #include "parameters.h"
@@ -22,23 +20,23 @@ using namespace Eigen;
 
 
 
-struct CameraModel{
+// struct CameraModel{
 
-  CameraModel(){}
+//   CameraModel(){}
 
-  CameraModel(bool equalize, int row, int col){
+//   CameraModel(bool equalize, int row, int col){
 
-    EQUALIZE = equalize;
-    ROW = row;
-    COL = col;
-  }
+//     EQUALIZE = equalize;
+//     ROW = row;
+//     COL = col;
+//   }
 
-  bool EQUALIZE; //如果光太亮或太暗则为1，进行直方图均衡化
-  int ROW;
-  int COL;
-  Eigen::Matrix<double, 3, 3, Eigen::RowMajor> camera_intrinsic;
-  Eigen::Matrix<double, 5, 1> camera_dist_coffes;
-};
+//   bool EQUALIZE; //如果光太亮或太暗则为1，进行直方图均衡化
+//   int ROW;
+//   int COL;
+//   Eigen::Matrix<double, 3, 3, Eigen::RowMajor> camera_intrinsic;
+//   Eigen::Matrix<double, 5, 1> camera_dist_coffes;
+// };
 
 /**
 * @class FeatureTracker
@@ -47,7 +45,9 @@ struct CameraModel{
 class FeatureTracker
 {
   public:
-    FeatureTracker(CameraModel& _cam_mod);
+    FeatureTracker();
+    FeatureTracker(PinholeCameraPtr _camera);
+
 
     void readImage(const cv::Mat &_img,double _cur_time);
 
@@ -57,9 +57,9 @@ class FeatureTracker
 
     bool updateID(unsigned int i);
 
-    void readIntrinsicParameter(const string &calib_file);
+    // void readIntrinsicParameter(const string &calib_file);
 
-    void showUndistortion(const string &name);
+    // void showUndistortion(const string &name);
 
     void rejectWithF();
 
@@ -93,16 +93,19 @@ class FeatureTracker
     map<int, cv::Point2f> cur_un_pts_map;
     map<int, cv::Point2f> prev_un_pts_map;
 
-    camodocal::CameraPtr m_camera;//相机模型
+    // camodocal::CameraPtr m_camera;//相机模型
 
     double cur_time;
     double prev_time;
 
     static int n_id;//特征点id，每检测到一个新的特征点，就将n_id作为该特征点的id，然后n_id加1
 
-    int EQUALIZE;
-    int ROW, COL;
-
-    CameraModel cam_mod;
+    double FOCAL_LENGTH = 460.0; // 虚假的焦距
+    double F_THRESHOLD = 1.0; // ransac算法的门限
+    int MIN_DIST = 30; // 特征点选择邻域阈值
+    int MAX_CNT = 150; // 特征点最大数目
+    int COL, ROW;
     
+    PinholeCameraPtr camera;
+    PinholeCamera::Parameters params;
 };
