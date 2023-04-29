@@ -11,73 +11,91 @@
 #include <mutex>
 #include <condition_variable>
 #include <livox_ros_driver/CustomMsg.h>
-#include <pcl/point_types.h>
-#include <pcl/point_cloud.h>
-#include <pcl_conversions/pcl_conversions.h>
 #include <sensor_msgs/CompressedImage.h>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/core/eigen.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <yolov5_ros/Detection2DArray.h>  // 目标检测结果
-#include "BYTETracker.h"
+#include "MOTtrack/BYTETracker.h"
 #include <map>
 #include <vector>
-#include "tools_thread_pool.hpp"
+#include "tools/tools_thread_pool.hpp"
 #include <cv_bridge/cv_bridge.h>
-#include "feature_tracker.h"
-#include "PinholeCamera.h"
+#include "feature_tracker/feature_tracker.h"
+#include "camera_models/PinholeCamera.h"
+// #include "color.hpp"
+#include "tools/so3_math.h"
+#include <nav_msgs/Path.h>
+#include "tools/tools_eigen.hpp"
+#include "common/common.h"
+#include "kd_tree/ikd_Tree.h"
 
-typedef pcl::PointXYZINormal PointType;
 
-struct DetectedObjects{
+const int laserCloudWidth = 48;
+const int laserCloudHeight = 48;
+const int laserCloudDepth = 48;
+const int laserCloudNum = laserCloudWidth * laserCloudHeight * laserCloudDepth; // 这个是什么意思？
 
-    std::vector<Object> objects;
-    double stamp; // sec
-};
+float DET_RANGE = 300.0f;
+const float MOV_THRESHOLD = 1.5f;
 
-struct SensorData{
+/// *************IMU Process and undistortion
+class ImuProcess
+{
+ public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    std::vector<pcl::PointCloud<PointType>::Ptr> lidar_vec;
-    std::vector<sensor_msgs::CompressedImageConstPtr> compress_img_vec;
-    std::vector<sensor_msgs::Imu::ConstPtr> imu_vec;
-    std::vector<DetectedObjects> detected_object_vec;
+  ImuProcess();
+  ~ImuProcess();
 
-    double lidar_begin_time, lidar_end_time;
-    double imu_begin_time, imu_end_time;
-    double compress_img_beign_time, compress_img_end_time;
-    double detected_object_begin_time, detected_object_end_time;
+  void Process(const LIMeasureGroup &meas, StatesGroup &state, PointCloudXYZINormal::Ptr pcl_un_);
+  void Reset();
+  void IMU_Initial(const LIMeasureGroup &meas, StatesGroup &state, int &N);
 
-    bool imu_ready = false;
-    bool lidar_ready = false;
-    bool compress_img_ready = false;
-    bool detected_object_ready = false;
+  // Eigen::Matrix3d Exp(const Eigen::Vector3d &ang_vel, const double &dt);
 
-    void clear_all(){
+  void IntegrateGyr(const std::vector<sensor_msgs::Imu::ConstPtr> &v_imu);
 
-        compress_img_vec.clear();
-        imu_vec.clear();
-        detected_object_vec.clear();
-        // 初始化激光雷达数据
-        lidar_vec.clear();
+  void UndistortPcl(const LIMeasureGroup &meas, StatesGroup &state_inout, PointCloudXYZINormal &pcl_in_out);
+  void lic_state_propagate(const LIMeasureGroup &meas, StatesGroup &state_inout);
+  void lic_point_cloud_undistort(const LIMeasureGroup &meas,  const StatesGroup &state_inout, PointCloudXYZINormal &pcl_out);
+  StatesGroup imu_preintegration(const StatesGroup & state_inout, std::deque<sensor_msgs::Imu::ConstPtr> & v_imu,  double end_pose_dt = 0);
+  ros::NodeHandle nh;
 
-        lidar_ready = false;
-        imu_ready = false;
-        compress_img_ready = false;
-        detected_object_ready = false;
-    }
+  void Integrate(const sensor_msgs::ImuConstPtr &imu);
+  void Reset(double start_timestamp, const sensor_msgs::ImuConstPtr &lastimu);
 
-    // all ready
-    bool all_ready(){
+  Eigen::Vector3d angvel_last;
+  Eigen::Vector3d acc_s_last;
 
-        if(lidar_ready && imu_ready && detected_object_ready && compress_img_ready){ // 所有数据就绪
+//   Eigen::Matrix<double,DIM_OF_PROC_N,1> cov_proc_noise;
 
-            return true;
-        }
-        else{
+  Eigen::Vector3d cov_acc;
+  Eigen::Vector3d cov_gyr;
 
-            return false;
-        }
-    }
+  // std::ofstream fout;
+
+ public:
+  /*** Whether is the first frame, init for first frame ***/
+  bool b_first_frame_ = true;
+  bool imu_need_init_ = true;
+
+  int init_iter_num = 1;
+  Eigen::Vector3d mean_acc;
+  Eigen::Vector3d mean_gyr;
+
+  /*** Undistorted pointcloud ***/
+  PointCloudXYZINormal::Ptr cur_pcl_un_;
+
+  //// For timestamp usage
+  sensor_msgs::ImuConstPtr last_imu_;
+
+  /*** For gyroscope integration ***/
+  double start_timestamp_;
+  /// Making sure the equal size: v_imu_ and v_rot_
+  std::deque<sensor_msgs::ImuConstPtr> v_imu_;
+  std::vector<Eigen::Matrix3d> v_rot_pcl_;
+  std::vector<Pose6D> IMU_pose;
 };
 
 
@@ -94,7 +112,18 @@ class SLMOD{
     std::shared_ptr<Common_tools::ThreadPool> thread_pool_ptr;
     std::mutex buffer_mutex;
     SensorData sensor_data; // 一次数据的结构体
-
+    StatesGroup g_state;
+    std::map<uint64_t, StatesGroup> g_states_vec; // 保留一段时间内的数据
+    void set_initial_state_cov(StatesGroup &stat);
+    void lasermap_fov_segment();
+    bool Localmap_Initialized = false;
+    BoxPointType LocalMap_Points;
+    void points_cache_collect();
+    KD_TREE ikdtree; // ikd-tree
+    pcl::VoxelGrid<PointType> downSizeFilterSurf;
+    double filter_size_map_min = 0.3;
+    
+    
     // lidar
     ros::Subscriber sub_lidar;
     std::string lidar_topic;
@@ -106,6 +135,18 @@ class SLMOD{
     void publish_cloud(const ros::Publisher &pub_cloud);
     ros::Publisher pub_raw_lidar;
     int lidar_hz;
+    bool project_3d_lidar_point_to_image(Eigen::Vector3d& temp_pt, Eigen::Matrix3d& extric_R, 
+                                            Eigen::Vector3d& extric_t, double& u, double& v);
+    
+    double cube_len = 1000.0; // from fast-lio
+
+    int laserCloudCenWidth = 24;
+    int laserCloudCenHeight = 24;
+    int laserCloudCenDepth = 24;
+    int FOV_RANGE = 4; // range of FOV = FOV_RANGE * cube_len
+
+    std::vector<BoxPointType> cub_needrm;
+    std::vector<BoxPointType> cub_needad;
 
     // visual
     ros::Subscriber sub_compress_img;
@@ -151,6 +192,9 @@ class SLMOD{
     void vio_odom();
     void lio_odom();
     void img_feature_track();
+
+    Eigen::Matrix<double, 3, 3> camera_2_inertial_R; // 相机坐标系到惯性坐标系
+    Eigen::Vector3d camera_2_inertial_t;
 
 };
 

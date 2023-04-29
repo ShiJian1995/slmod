@@ -96,8 +96,8 @@ class detector:
         self.imgsz = check_img_size(self.imgsz, s=self.stride)  # check image size
 
         # call back
-        rospy.Subscriber("/camera/image_color/compressed", CompressedImage, self.compressedimage_callback, queue_size=1)
-        # rospy.Subscriber("/gige_cam/image_raw/compressed", CompressedImage, self.compressedimage_callback, queue_size=1)
+        # rospy.Subscriber("/camera/image_color/compressed", CompressedImage, self.compressedimage_callback, queue_size=1)
+        rospy.Subscriber("/gige_cam/image_raw/compressed", CompressedImage, self.compressedimage_callback, queue_size=1)
         self.object_pub = rospy.Publisher("~objects", Detection2DArray, queue_size=1)
 
         self.bs = 1  # batch_size

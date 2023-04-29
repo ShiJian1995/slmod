@@ -136,17 +136,13 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-  include
+  # include
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
   ${livox_ros_driver_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
-  ${PROJECT_SOURCE_DIR}/include/MOTtrack
-  ${PROJECT_SOURCE_DIR}/include/slmod
-  ${PROJECT_SOURCE_DIR}/include/tools
-  ${PROJECT_SOURCE_DIR}/include/feature_tracker
-  ${PROJECT_SOURCE_DIR}/include/camera_models
+  ${PROJECT_SOURCE_DIR}/include
 )
 
 ## Declare a C++ library
@@ -170,7 +166,8 @@ add_executable(${PROJECT_NAME}_node src/slmod_node.cpp
               src/vio.cpp
               src/lio.cpp
               src/feature_tracker/feature_tracker.cpp
-              src/camera_models/PinholeCamera.cpp)
+              src/camera_models/PinholeCamera.cpp
+              src/kd_tree/ikd_Tree.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the

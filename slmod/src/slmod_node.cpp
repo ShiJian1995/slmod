@@ -1,6 +1,6 @@
 // 巨人从此起飞，2023.3.30
 
-#include "slmod.h"
+#include "slmod/slmod.h"
 
 int main(int argc, char** argv){
 

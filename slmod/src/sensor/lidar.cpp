@@ -1,4 +1,4 @@
-#include "slmod.h"
+#include "slmod/slmod.h"
 
 void SLMOD::lidar_callback(const livox_ros_driver::CustomMsg::ConstPtr &msg_raw)
 {

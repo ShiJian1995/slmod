@@ -1,4 +1,4 @@
-#include "slmod.h"
+#include "slmod/slmod.h"
 
 
 void SLMOD::compress_img_callback(const sensor_msgs::CompressedImageConstPtr &msg){
@@ -8,10 +8,10 @@ void SLMOD::compress_img_callback(const sensor_msgs::CompressedImageConstPtr &ms
     buffer_mutex.unlock();
 
     // 显示图像
-    cv_bridge::CvImagePtr cv_ptr_compressed = cv_bridge::toCvCopy( msg, sensor_msgs::image_encodings::BGR8 );
-    cv::Mat img_temp = cv_ptr_compressed->image;
-    cv::imshow("feature point image", img_temp);
-    cv::waitKey(1);
+    // cv_bridge::CvImagePtr cv_ptr_compressed = cv_bridge::toCvCopy( msg, sensor_msgs::image_encodings::BGR8 );
+    // cv::Mat img_temp = cv_ptr_compressed->image;
+    // cv::imshow("feature point image", img_temp);
+    // cv::waitKey(1);
 }
 
 void SLMOD::object_callback(const yolov5_ros::Detection2DArrayConstPtr &msg){

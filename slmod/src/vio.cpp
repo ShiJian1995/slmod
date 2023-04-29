@@ -1,4 +1,4 @@
-#include "slmod.h"
+#include "slmod/slmod.h"
 
 
 // vio: 同时使用特征点和投影点，提升估计结果
@@ -129,7 +129,8 @@ void SLMOD::img_feature_track(){
                 }
 
 
-                // 求解 VIO
+                // 利用上述的特征点求解 VIO
+
 
             }   
 

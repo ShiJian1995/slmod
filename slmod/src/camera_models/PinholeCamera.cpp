@@ -1,4 +1,4 @@
-#include "PinholeCamera.h"
+#include "camera_models/PinholeCamera.h"
 
 #include <cmath>
 #include <cstdio>

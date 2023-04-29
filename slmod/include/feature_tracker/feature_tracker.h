@@ -9,7 +9,7 @@
 #include <opencv2/opencv.hpp>
 #include <eigen3/Eigen/Dense>
 
-#include "PinholeCamera.h"
+#include "camera_models/PinholeCamera.h"
 
 // #include "parameters.h"
 // #include "tic_toc.h"

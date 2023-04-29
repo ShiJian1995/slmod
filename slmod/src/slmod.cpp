@@ -1,4 +1,4 @@
-#include "slmod.h"
+#include "slmod/slmod.h"
 
 
 SLMOD::SLMOD(){
@@ -21,6 +21,11 @@ SLMOD::SLMOD(){
     nh.getParam("/camera/camera_intrinsic", camera_intrinsic_vec); // 相机内参
     nh.getParam("/camera/camera_dist_coeffs", camera_dist_coeffs_vec);
 
+    std::vector<double> camera_2_inertial_t_vec, camera_2_inertial_R_vec;
+    nh.getParam("/slmod_vio/camera_2_inertial_R", camera_2_inertial_R_vec);
+    nh.getParam("/slmod_vio/camera_2_inertial_t", camera_2_inertial_t_vec);
+    camera_2_inertial_R = Eigen::Map<Eigen::Matrix<double, 3, 3>>(camera_2_inertial_R_vec.data());
+    camera_2_inertial_t = Eigen::Map<Eigen::Vector3d>(camera_2_inertial_t_vec.data());
 
     Eigen::Matrix<double, 3, 3, Eigen::RowMajor> camera_intrinsic = Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>>(camera_intrinsic_vec.data());
     Eigen::Matrix<double, 4, 1> camera_dist_coffes = Eigen::Map<Eigen::Matrix<double, 4, 1>>(camera_dist_coeffs_vec.data());
@@ -30,6 +35,8 @@ SLMOD::SLMOD(){
     fx = camera_intrinsic(0, 0); fy = camera_intrinsic(1, 1); cx = camera_intrinsic(0, 2); cy = camera_intrinsic(1, 2); // 内参
     PinholeCamera::Parameters params(img_width, img_height, equalize, k1, k2, p1, p2, fx, fy, cx, cy);
     camera = boost::make_shared<PinholeCamera>(PinholeCamera(params)); // 针孔相机模型
+
+    downSizeFilterSurf.setLeafSize(filter_size_map_min, filter_size_map_min, filter_size_map_min); // 设置降采样网格大小
 
     // 回调函数
     sub_imu = nh.subscribe(imu_topic, 2000, &SLMOD::imu_callback, this, ros::TransportHints().tcpNoDelay());
@@ -134,6 +141,7 @@ void SLMOD::sync_multi_sensor(){
                 sensor_data.lidar_end_time = sensor_data.lidar_begin_time + 
                                             lidar_buffer.front()->points.end()->curvature / (1e3);
                 
+                lidar_buffer.pop_front();
             }
 
             // 提取IMU数据
@@ -141,12 +149,13 @@ void SLMOD::sync_multi_sensor(){
 
                 imu_buffer_front_stamp = imu_buffer.front()->header.stamp.toSec();
                 
-                if(sensor_data.imu_vec.empty()){
+                if(sensor_data.imu_lio_vec.empty()){
 
                     sensor_data.imu_begin_time = imu_buffer_front_stamp;
                     // sensor_data.imu_last_time = imu_buffer_front_stamp;
                     sensor_data.imu_end_time = imu_buffer_front_stamp;
-                    sensor_data.imu_vec.push_back(imu_buffer.front());
+                    sensor_data.imu_lio_vec.push_back(imu_buffer.front()); // 用于 lio 预积分
+                    sensor_data.imu_vio_vec.push_back(imu_buffer.front()); // 用于 vio 预积分
                     imu_buffer.pop_front();
                 }
                 else{
@@ -165,7 +174,8 @@ void SLMOD::sync_multi_sensor(){
                             // imu_buffer.pop_front();
                         }
 
-                        sensor_data.imu_vec.push_back(imu_buffer.front());
+                        sensor_data.imu_lio_vec.push_back(imu_buffer.front());
+                        sensor_data.imu_vio_vec.push_back(imu_buffer.front());
                         imu_buffer.pop_front();
                         sensor_data.imu_end_time = imu_buffer_front_stamp;
                         // sensor_data.imu_last_time = imu_buffer_front_stamp;
@@ -175,16 +185,13 @@ void SLMOD::sync_multi_sensor(){
                             
                         // std::cout << "imu ready !!!!!" << std::endl;
                         sensor_data.imu_ready = true;
-                        std::cout << "imu data size is " << sensor_data.imu_vec.size() << std::endl;
+                        std::cout << "imu data size is " << sensor_data.imu_lio_vec.size() << std::endl;
                         // if(sensor_data.imu_vec.size() != (imu_hz / lidar_hz)){
 
                         //     ROS_WARN_STREAM("IMU LOST !!!");
                         // }
                     }
-                    
                 }
-
-
             }
 
             // 同步compress_img数据
