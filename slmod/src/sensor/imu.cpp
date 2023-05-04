@@ -23,6 +23,7 @@ ImuProcess::ImuProcess() : b_first_frame_( true ), imu_need_init_( true ), last_
     // cov_proc_noise = Eigen::Matrix< double, DIM_OF_PROC_N, 1 >::Zero();
     // Lidar_offset_to_IMU = Eigen::Vector3d(0.0, 0.0, -0.0);
     // fout.open(DEBUG_FILE_DIR("imu.txt"),std::ios::out);
+    // cur_pcl_un_.reset( new PointCloudXYZINormal() ); // 手动分配内存
 }
 
 ImuProcess::~ImuProcess()
@@ -36,7 +37,7 @@ void ImuProcess::Process(const LIMeasureGroup &meas, StatesGroup &state, PointCl
         /// The very first lidar frame
         IMU_Initial( meas, state, init_iter_num ); // 重新考虑IMU初始化过程
 
-        imu_need_init_ = true;
+        // imu_need_init_ = true;
 
         last_imu_ = meas.imu.back();
 
@@ -53,8 +54,34 @@ void ImuProcess::Process(const LIMeasureGroup &meas, StatesGroup &state, PointCl
         return;
     }
 
-    lic_point_cloud_undistort( meas, state, *cur_pcl_un_ );
+    lic_point_cloud_undistort( meas, state, *pcl_un_ );
     lic_state_propagate( meas, state );
+    last_imu_ = meas.imu.back();
+}
+
+void ImuProcess::Reset()
+{
+    ROS_WARN( "Reset ImuProcess" );
+    angvel_last = Zero3d;
+    // cov_proc_noise = Eigen::Matrix< double, DIM_OF_PROC_N, 1 >::Zero();
+
+    cov_acc = Eigen::Vector3d( COV_START_ACC_DIAG, COV_START_ACC_DIAG, COV_START_ACC_DIAG );
+    cov_gyr = Eigen::Vector3d( COV_START_GYRO_DIAG, COV_START_GYRO_DIAG, COV_START_GYRO_DIAG );
+    mean_acc = Eigen::Vector3d( 0, 0, -9.805 );
+    mean_gyr = Eigen::Vector3d( 0, 0, 0 );
+
+    imu_need_init_ = true;
+    b_first_frame_ = true;
+    init_iter_num = 1;
+
+    last_imu_ = nullptr;
+
+    // gyr_int_.Reset(-1, nullptr);
+    start_timestamp_ = -1;
+    v_imu_.clear();
+    IMU_pose.clear();
+
+    // cur_pcl_un_.reset( new PointCloudXYZINormal() );
 }
 
 void ImuProcess::IMU_Initial( const LIMeasureGroup &meas, StatesGroup &state_inout, int &N )
@@ -64,12 +91,12 @@ void ImuProcess::IMU_Initial( const LIMeasureGroup &meas, StatesGroup &state_ino
     ROS_INFO( "IMU Initializing: %.1f %%", double( N ) / MAX_INI_COUNT * 100 );
     Eigen::Vector3d cur_acc, cur_gyr;
 
-    // if ( b_first_frame_ )
-    // {
-    //     Reset();
-    //     N = 1;
-    //     b_first_frame_ = false;
-    // }
+    if ( b_first_frame_ )
+    {
+        Reset();
+        N = 1;
+        b_first_frame_ = false;
+    }
 
     for ( const auto &imu : meas.imu )
     {
@@ -92,7 +119,7 @@ void ImuProcess::IMU_Initial( const LIMeasureGroup &meas, StatesGroup &state_ino
     cov_acc = Eigen::Vector3d( COV_START_ACC_DIAG, COV_START_ACC_DIAG, COV_START_ACC_DIAG );
     cov_gyr = Eigen::Vector3d( COV_START_GYRO_DIAG, COV_START_GYRO_DIAG, COV_START_GYRO_DIAG );
     state_inout.gravity = Eigen::Vector3d( 0, 0, 9.805 );
-    state_inout.rot_end = Eigen::Vector3d::Identity();
+    state_inout.rot_end = Eigen::Matrix3d::Identity();
     state_inout.bias_g = mean_gyr;
 }
 
@@ -239,7 +266,7 @@ void ImuProcess::lic_state_propagate( const LIMeasureGroup &meas, StatesGroup &s
 
     state_inout = imu_preintegration( state_inout, v_imu, end_pose_dt );
     last_imu_ = meas.imu.back();
-    
+
 }
 
 

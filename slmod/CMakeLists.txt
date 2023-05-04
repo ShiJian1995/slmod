@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 2.8.3)
+set(OpenCV_DIR "/usr/local/opencv-3.3.1")
 project(slmod)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
@@ -8,9 +9,14 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -std=c++14 -O3 -lboost_s
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
+add_definitions(-DROOT_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/\")
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
+FIND_PACKAGE(Boost REQUIRED COMPONENTS filesystem iostreams program_options system serialization)
+if(Boost_FOUND)
+	INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
+	LINK_DIRECTORIES(${Boost_LIBRARY_DIRS})
+endif()
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   roscpp
@@ -29,7 +35,35 @@ find_package(Eigen3)
 
 find_package(PCL REQUIRED)
 find_package(OpenCV REQUIRED)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}   ${OpenMP_C_FLAGS}")
 
+### Find OpenMP #######
+FIND_PACKAGE(OpenMP)
+if(OPENMP_FOUND)
+	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+	#cmake only check for separate OpenMP library on AppleClang 7+
+	#https://github.com/Kitware/CMake/blob/42212f7539040139ecec092547b7d58ef12a4d72/Modules/FindOpenMP.cmake#L252
+	if (CMAKE_CXX_COMPILER_ID MATCHES "AppleClang" AND (NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "7.0"))
+		SET(OpenMP_LIBS ${OpenMP_libomp_LIBRARY})
+		LIST(APPEND OpenMVS_EXTRA_LIBS ${OpenMP_LIBS})
+	endif()
+else()
+	message("-- Can't find OpenMP. Continuing without it.")
+endif()
+
+find_package(OpenMVS)
+if(OpenMVS_FOUND)
+	include_directories(${OpenMVS_INCLUDE_DIRS})
+	add_definitions(${OpenMVS_DEFINITIONS})
+endif()
+
+message(STATUS "===== ${PROJECT_NAME}: OpenCV library status: =====")
+message(STATUS "===== OpenCV ersion: ${OpenCV_VERSION}  =====")
+message(STATUS "===== OpenCV libraries: ${OpenCV_LIBS} =====")
+message(STATUS "===== OpenCV include path: ${OpenCV_INCLUDE_DIRS} =====")
+
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
@@ -141,7 +175,7 @@ include_directories(
   ${EIGEN3_INCLUDE_DIR}
   ${livox_ros_driver_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
-  ${OpenCV_INCLUDE_DIRS}
+  # ${OpenCV_INCLUDE_DIRS}
   ${PROJECT_SOURCE_DIR}/include
 )
 
@@ -167,7 +201,8 @@ add_executable(${PROJECT_NAME}_node src/slmod_node.cpp
               src/lio.cpp
               src/feature_tracker/feature_tracker.cpp
               src/camera_models/PinholeCamera.cpp
-              src/kd_tree/ikd_Tree.cpp)
+              src/kd_tree/ikd_Tree.cpp
+              )
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -182,8 +217,13 @@ add_executable(${PROJECT_NAME}_node src/slmod_node.cpp
 ## Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME}_node
   ${catkin_LIBRARIES}
-  ${PCL_LIBRARIES}
+  # ${PCL_LIBRARIES}
   ${OpenCV_LIBRARIES}
+  ${Boost_LIBRARIES}
+  ${Boost_FILESYSTEM_LIBRARY}
+  ${Boost_SERIALIZATION_LIBRARY} # serialization
+  pcl_common 
+  pcl_io
 )
 
 #############

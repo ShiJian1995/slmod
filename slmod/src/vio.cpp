@@ -18,6 +18,10 @@ void SLMOD::img_feature_track(){
 
     while(ros::ok()){
 
+        // 休眠 
+        std::this_thread::yield();
+        std::this_thread::sleep_for( std::chrono::milliseconds(1));
+
         bool data_exist = false;
         buffer_mutex.lock(); // 缓存队列锁
 
@@ -136,8 +140,7 @@ void SLMOD::img_feature_track(){
 
         }
 
-        // 休眠 
-        std::this_thread::sleep_for( std::chrono::milliseconds(1));
+        
 
     }
     

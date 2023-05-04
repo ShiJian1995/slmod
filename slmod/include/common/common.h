@@ -10,7 +10,7 @@
 
 
 #define USE_ikdtree
-typedef pcl::PointXYZINormal PointType;
+// typedef pcl::PointXYZINormal PointType;
 #define DIM_OF_STATES (18) // For faster speed.
 #define INIT_COV (0.0001)
 #define NS2S (1e-9)
@@ -36,6 +36,9 @@ static const Eigen::Vector3f Zero3f(0, 0, 0);
 
 #define COV_BIAS_ACC_NOISE_DIAG 0.05
 #define COV_BIAS_GYRO_NOISE_DIAG 0.1 // 需要进行相应的设置
+#define NUM_MATCH_POINTS (5)
+#define LASER_POINT_COV (0.00015)  
+#define ESTIMATE_GRAVITY  0 
 
 struct DetectedObjects{
 
@@ -128,7 +131,7 @@ public:
 
     Eigen::Matrix<double, DIM_OF_STATES, DIM_OF_STATES> cov; // states covariance
     double last_update_time = 0;
-    double          td_ext_i2c;
+    // double          td_ext_i2c;
     StatesGroup()
     {
         rot_end = Eigen::Matrix3d::Identity();
@@ -142,7 +145,7 @@ public:
         cov = Eigen::Matrix<double, DIM_OF_STATES, DIM_OF_STATES>::Identity() * INIT_COV;
         // cov.block(18, 18, 6,6) *= 0.1;
         last_update_time = 0;
-        td_ext_i2c = 0;
+        // td_ext_i2c = 0;
     }
 
     ~StatesGroup(){}

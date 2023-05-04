@@ -32,6 +32,7 @@ void SLMOD::avia_handler(const livox_ros_driver::CustomMsg::ConstPtr &msg)
             pl_full[i].y = msg->points[i].y;
             pl_full[i].z = msg->points[i].z;
             pl_full[i].intensity = msg->points[i].reflectivity;
+            // std::cout << "msg->points[i].offset_time " << msg->points[i].offset_time << std::endl;
             pl_full[i].curvature = msg->points[i].offset_time / float(1000000); // use curvature as time of each laser points, curvature unit: ms
         }
     }
